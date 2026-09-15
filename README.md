@@ -63,18 +63,12 @@ Every run writes machine-readable results and a stakeholder-friendly HTML dashbo
 |---|---|
 | Axe JSON | `reports/axe-results.json` |
 | HTML dashboard | `reports/accessibility-report.html` |
+| Element screenshots | `reports/evidence/{page}/{rule}-{index}.png` |
 | Playwright traces (failures) | `test-results/` |
 
-### How stakeholders read it
+Each finding includes a **highlighted screenshot** from the live app (orange outline on the affected element). Repeated UI patterns (e.g. CO2 badges on every product card) are **grouped** with one representative screenshot and a collapsible list of all selectors.
 
-1. **Verdict banner** — overall outcome for the configured `FAIL_ON` gate.
-2. **Fix first** — prioritized list across all pages (critical → minor).
-3. **Journey** — per-page status with links to detailed sections.
-4. **User impact** — plain-language explanation under each rule (who is affected and why).
-5. **WCAG success criteria** — chips such as `SC 1.3.1`, `SC 2.5.8` mapped from axe tags.
-6. **Needs manual review** — rules axe could not fully automate (contrast, etc.).
-
-Developers expand each **Element** row for selectors, HTML snippet, and fix instructions. Deque documentation links provide the canonical remediation guidance.
+Open `reports/accessibility-report.html` with the `reports/evidence/` folder beside it (CI uploads the whole `reports/` directory as one artifact).
 
 ## CI
 

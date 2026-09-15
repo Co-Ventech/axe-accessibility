@@ -1,6 +1,7 @@
 const AxeBuilder = require('@axe-core/playwright').default;
 const { wcagTags, failOn } = require('../config');
 const { getFailImpacts, sortViolations } = require('./reportHelpers');
+const { attachScanEvidence } = require('./evidenceCapture');
 
 const IMPACT_ORDER = ['critical', 'serious', 'moderate', 'minor'];
 
@@ -27,6 +28,12 @@ async function scanPage(page, { name, url, tags = wcagTags }) {
   await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
   const results = await new AxeBuilder({ page }).withTags(tags).analyze();
+
+  await attachScanEvidence(page, name, {
+    violations: results.violations,
+    incompleteRules: results.incomplete,
+  });
+
   const summary = summarizeViolations(results.violations);
   const failingImpacts = getFailImpacts(failOn);
   const failingViolations = results.violations.filter((violation) => failingImpacts.includes(violation.impact));

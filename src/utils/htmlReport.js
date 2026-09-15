@@ -10,7 +10,10 @@ const {
   userImpactForRule,
   formatTimestamp,
   readAxeVersion,
+  countIncompleteNodes,
+  axeReviewReason,
 } = require('./reportHelpers');
+const { groupNodes, formatGroupSummary } = require('./nodeGrouping');
 
 const htmlPath = path.join('reports', 'accessibility-report.html');
 
@@ -33,6 +36,10 @@ function impactBadge(impact) {
   return `<span class="badge impact-${escapeHtml(impact)}">${escapeHtml(impact)}</span>`;
 }
 
+function reviewBadge() {
+  return '<span class="badge impact-review">Manual review</span>';
+}
+
 function statusBadge(status) {
   return `<span class="status-pill status-${escapeHtml(status.code)}">${escapeHtml(status.label)}</span>`;
 }
@@ -49,21 +56,63 @@ function renderWcagChips(tags) {
   return `<div class="chip-row">${criteria.map((item) => `<span class="chip">${escapeHtml(item)}</span>`).join('')}</div>`;
 }
 
-function renderNodes(nodes) {
-  return nodes
+function renderEvidence(node) {
+  if (!node.screenshot) {
+    return node.captureNote ? `<p class="meta">${escapeHtml(node.captureNote)}</p>` : '';
+  }
+
+  return `
+    <figure class="evidence">
+      <img src="${escapeHtml(node.screenshot)}" alt="Screenshot of affected element in the live application" loading="lazy" />
+      <figcaption>${escapeHtml(node.captureNote || 'Context capture with highlighted element from the live application.')}</figcaption>
+    </figure>`;
+}
+
+function defaultFixText(manualReview) {
+  return manualReview
+    ? 'Confirm this element manually — automated checks could not determine pass or fail.'
+    : 'See rule documentation for remediation steps.';
+}
+
+function renderGroupedNodes(nodes, { manualReview = false } = {}) {
+  const groups = groupNodes(nodes);
+  if (!groups.length) {
+    return '';
+  }
+
+  return groups
     .map(
-      (node, index) => `
-        <details class="element-detail">
-          <summary>Element ${index + 1}: <code>${escapeHtml(node.target.join(' '))}</code></summary>
-          <p class="element-html"><strong>HTML:</strong> <code>${escapeHtml(node.html || '')}</code></p>
-          <p class="fix">${formatMultiline(node.failureSummary || 'See rule documentation for remediation steps.')}</p>
-        </details>`,
+      (group, index) => {
+        const representative = group.representative;
+        const fixText = manualReview ? axeReviewReason(representative) : representative.failureSummary || defaultFixText(false);
+
+        return `
+        <details class="element-group" ${index === 0 ? 'open' : ''}>
+          <summary>
+            <strong>${escapeHtml(group.label)}</strong>
+            <span class="meta"> — ${escapeHtml(formatGroupSummary(group))}</span>
+          </summary>
+          ${renderEvidence(representative)}
+          <p class="fix">${formatMultiline(fixText)}</p>
+          <p class="element-html"><strong>Example selector:</strong> <code>${escapeHtml(representative.target.join(' '))}</code></p>
+          ${
+            group.count > 1
+              ? `
+          <details class="instance-list">
+            <summary>All ${group.count} selectors</summary>
+            <ol>${group.nodes.map((node) => `<li><code>${escapeHtml(node.target.join(' '))}</code></li>`).join('')}</ol>
+          </details>`
+              : ''
+          }
+        </details>`;
+      },
     )
     .join('');
 }
 
 function renderViolation(violation) {
   const elementCount = violation.nodes.length;
+  const patternCount = groupNodes(violation.nodes).length;
   return `
     <article class="violation impact-${escapeHtml(violation.impact)}">
       <header class="violation-header">
@@ -71,13 +120,13 @@ function renderViolation(violation) {
           ${impactBadge(violation.impact)}
           <h3>${escapeHtml(violation.help)}</h3>
         </div>
-        <p class="rule-id">Rule: <code>${escapeHtml(violation.id)}</code> · ${elementCount} element(s)</p>
+        <p class="rule-id">Rule: <code>${escapeHtml(violation.id)}</code> · ${elementCount} element(s) · ${patternCount} pattern(s)</p>
       </header>
       ${renderWcagChips(violation.tags)}
       <p class="user-impact"><strong>User impact:</strong> ${escapeHtml(userImpactForRule(violation))}</p>
       <p>${escapeHtml(violation.description)}</p>
       <p><a href="${escapeHtml(violation.helpUrl)}" target="_blank" rel="noopener">Deque rule documentation ↗</a></p>
-      <div class="elements">${renderNodes(violation.nodes)}</div>
+      <div class="elements">${renderGroupedNodes(violation.nodes)}</div>
     </article>`;
 }
 
@@ -87,24 +136,26 @@ function renderIncompleteRules(rules) {
   }
 
   const items = rules
-    .map(
-      (rule) => `
+    .map((rule) => {
+      const patterns = groupNodes(rule.nodes);
+      return `
         <article class="incomplete-rule">
           <header>
-            ${impactBadge(rule.impact || 'moderate')}
+            ${reviewBadge()}
             <strong>${escapeHtml(rule.help || rule.id)}</strong>
           </header>
           ${renderWcagChips(rule.tags)}
           <p>${escapeHtml(rule.description || 'Automated checks could not fully evaluate this rule.')}</p>
-          <p class="meta">${rule.nodes.length} element(s) need manual review (contrast, focus order, etc.).</p>
-        </article>`,
-    )
+          <p class="meta">${rule.nodes.length} unverified element(s) in ${patterns.length} pattern(s) — not confirmed failures. Representative screenshots below.</p>
+          <div class="elements">${renderGroupedNodes(rule.nodes, { manualReview: true })}</div>
+        </article>`;
+    })
     .join('');
 
   return `
     <section class="manual-review">
-      <h3>Needs manual review (${rules.length})</h3>
-      <p class="meta">Incomplete results are expected in professional audits — a human should confirm these areas.</p>
+      <h3>Unverified — needs manual review (${rules.length} rule(s))</h3>
+      <p class="meta">These items were flagged by axe but could not be confirmed automatically. They are not counted as violations until a human verifies them.</p>
       ${items}
     </section>`;
 }
@@ -126,11 +177,12 @@ function renderPageSection(scan, failOn) {
       </div>
       <p class="status-detail">${escapeHtml(status.detail)}</p>
       <div class="stats-row">
-        <span class="stat"><strong>${scan.violationCount || 0}</strong> violations</span>
+        <span class="stat"><strong>${scan.violationCount || 0}</strong> confirmed violations</span>
+        <span class="stat"><strong>${countIncompleteNodes(scan)}</strong> unverified items</span>
         <span class="stat"><strong>${scan.passes || 0}</strong> rules passed</span>
-        <span class="stat"><strong>${scan.incomplete || 0}</strong> need manual review</span>
         <span class="stat"><strong>${scan.inapplicable || 0}</strong> not applicable</span>
       </div>
+      <p class="meta">Confirmed violation severity (automated only):</p>
       <div class="impact-row">
         <span class="impact-chip critical">Critical: ${scan.summary.critical || 0}</span>
         <span class="impact-chip serious">Serious: ${scan.summary.serious || 0}</span>
@@ -139,8 +191,8 @@ function renderPageSection(scan, failOn) {
       </div>
       ${
         violations.length
-          ? `<div class="violations">${violations.map(renderViolation).join('')}</div>`
-          : '<p class="ok">No automated violations on this page.</p>'
+          ? `<h3>Confirmed violations (${violations.length})</h3><p class="meta">Automated failures reported by axe-core — these are not manual-review guesses.</p><div class="violations">${violations.map(renderViolation).join('')}</div>`
+          : '<p class="ok">No confirmed automated violations on this page.</p>'
       }
       ${renderIncompleteRules(incompleteRules)}
     </section>`;
@@ -188,7 +240,7 @@ function renderJourney(scans, failOn) {
           <a href="#${sectionId}">
             <span class="step-name">${escapeHtml(scan.name)}</span>
             ${statusBadge(status)}
-            <span class="step-meta">${scan.violationCount || 0} violation(s) · ${scan.incomplete || 0} manual</span>
+            <span class="step-meta">${scan.violationCount || 0} confirmed · ${countIncompleteNodes(scan)} unverified</span>
           </a>
         </li>`;
     })
@@ -208,10 +260,10 @@ function buildHtml(payload) {
       acc.serious += scan.summary.serious || 0;
       acc.moderate += scan.summary.moderate || 0;
       acc.minor += scan.summary.minor || 0;
-      acc.incomplete += scan.incomplete || 0;
+      acc.unverified += countIncompleteNodes(scan);
       return acc;
     },
-    { violations: 0, critical: 0, serious: 0, moderate: 0, minor: 0, incomplete: 0 },
+    { violations: 0, critical: 0, serious: 0, moderate: 0, minor: 0, unverified: 0 },
   );
 
   return `<!DOCTYPE html>
@@ -256,6 +308,7 @@ function buildHtml(payload) {
     .impact-serious, .impact-chip.serious { background: #9a3412; }
     .impact-moderate, .impact-chip.moderate { background: #854d0e; }
     .impact-minor, .impact-chip.minor { background: #1e3a8a; }
+    .impact-review { background: #334155; color: #e2e8f0; text-transform: none; }
     .impact-row, .stats-row, .chip-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
     .stat, .impact-chip { background: #1e293b; border-radius: 8px; padding: 6px 10px; }
     .chip { background: #172554; color: #bfdbfe; font-weight: 600; text-transform: none; }
@@ -275,14 +328,17 @@ function buildHtml(payload) {
     .rule-id, .user-impact { margin: 8px 0; }
     .user-impact { color: #fde68a; }
     .element-detail { margin-top: 8px; background: #111827; border-radius: 8px; padding: 8px 10px; }
-    .element-detail summary { cursor: pointer; }
+    .element-group, .element-detail { margin-top: 10px; background: #0f172a; border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+    .element-group summary, .element-detail summary, .instance-list summary { cursor: pointer; }
+    .instance-list { margin-top: 10px; }
+    .instance-list ol { margin: 8px 0 0; padding-left: 20px; }
+    .evidence { margin: 12px 0; }
+    .evidence img { display: block; width: auto; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+    .evidence figcaption { margin-top: 6px; color: var(--muted); font-size: 0.88rem; }
     .fix, .element-html { margin: 8px 0 0; color: var(--muted); font-size: 0.92rem; }
     .ok { color: #86efac; }
     .priority-list { padding-left: 20px; }
     .priority-list li { margin-bottom: 10px; }
-    .guide-grid { display: grid; gap: 10px; }
-    .guide-grid dt { font-weight: 700; }
-    .guide-grid dd { margin: 0 0 8px; color: var(--muted); }
     .footer { font-size: 0.9rem; color: var(--muted); }
     code { word-break: break-word; font-size: 0.88em; }
     details > summary { list-style: disclosure-closed; }
@@ -298,28 +354,10 @@ function buildHtml(payload) {
       </div>
       <div class="cards">
         <div class="card"><strong>${scans.length}</strong> pages scanned</div>
-        <div class="card"><strong>${totals.violations}</strong> violations found</div>
-        <div class="card"><strong>${totals.incomplete}</strong> manual checks</div>
-        <div class="card"><strong>${totals.serious + totals.critical}</strong> high priority</div>
+        <div class="card"><strong>${totals.violations}</strong> confirmed violations</div>
+        <div class="card"><strong>${totals.unverified}</strong> unverified items</div>
+        <div class="card"><strong>${totals.serious + totals.critical}</strong> confirmed high priority</div>
       </div>
-    </section>
-
-    <section class="panel">
-      <h2>How to read this report</h2>
-      <dl class="guide-grid">
-        <dt>For product / delivery leads</dt>
-        <dd>Start with the verdict banner and <strong>Fix first</strong> list. Each finding explains real user impact, not just code jargon.</dd>
-        <dt>For developers</dt>
-        <dd>Expand each element under a violation for selectors, HTML snippet, and remediation text. Use the Deque documentation links for exact fixes.</dd>
-        <dt>For QA / audit</dt>
-        <dd>Items under <strong>Needs manual review</strong> still require human validation — automated scans never replace a full WCAG audit.</dd>
-        <dt>About FAIL_ON=${escapeHtml(failOn)}</dt>
-        <dd>${
-          failOn === 'none'
-            ? 'Tests pass when scans complete; violations are reported here for triage. Set <code>FAIL_ON=serious</code> in CI to enforce a stricter gate.'
-            : `Builds fail when ${escapeHtml(failOn)} or higher impact violations are detected.`
-        }</dd>
-      </dl>
     </section>
 
     <section class="panel">
@@ -344,7 +382,7 @@ function buildHtml(payload) {
     </section>
 
     <section class="panel">
-      <h2>Fix first (priority order)</h2>
+      <h2>Fix first — confirmed violations only</h2>
       ${renderPriorityList(scans)}
     </section>
 

@@ -26,25 +26,41 @@ function getFailImpacts(failOn) {
   return FAIL_THRESHOLDS[failOn] || FAIL_THRESHOLDS.none;
 }
 
+function countIncompleteNodes(scan) {
+  return (scan.incompleteRules || []).reduce((total, rule) => total + (rule.nodes?.length || 0), 0);
+}
+
 function getPageStatus(scan, failOn) {
   const failImpacts = getFailImpacts(failOn);
   const blocking = (scan.violations || []).filter((v) => failImpacts.includes(v.impact));
-  const hasIncomplete = (scan.incompleteRules || []).length > 0 || (scan.incomplete || 0) > 0;
-  const hasAnyViolations = (scan.violationCount || 0) > 0;
+  const confirmedCount = scan.violationCount || 0;
+  const unverifiedCount = countIncompleteNodes(scan);
 
   if (blocking.length > 0) {
-    return { code: 'fail', label: 'Fails gate', detail: `${blocking.length} issue(s) at or above ${failOn} threshold` };
+    return {
+      code: 'fail',
+      label: 'Fails gate',
+      detail: `${blocking.length} confirmed violation(s) at or above ${failOn} threshold`,
+    };
   }
-  if (hasAnyViolations || hasIncomplete) {
+
+  const detailParts = [];
+  if (confirmedCount > 0) {
+    detailParts.push(`${confirmedCount} confirmed violation(s)`);
+  }
+  if (unverifiedCount > 0) {
+    detailParts.push(`${unverifiedCount} unverified item(s) needing manual review`);
+  }
+
+  if (detailParts.length > 0) {
     return {
       code: 'review',
       label: 'Review findings',
-      detail: hasIncomplete
-        ? 'Automated checks found issues and items needing manual review'
-        : 'Findings recorded below configured fail threshold',
+      detail: `${detailParts.join(' · ')} — unverified items are not confirmed failures`,
     };
   }
-  return { code: 'pass', label: 'Pass', detail: 'No violations detected at scanned scope' };
+
+  return { code: 'pass', label: 'Pass', detail: 'No issues detected at scanned scope' };
 }
 
 function getOverallStatus(scans, failOn) {
@@ -92,11 +108,23 @@ function formatTimestamp(iso) {
 
 function readAxeVersion() {
   try {
-    const pkg = require('@axe-core/playwright/package.json');
-    return pkg.version;
+    return require('axe-core/package.json').version;
   } catch {
-    return 'unknown';
+    try {
+      return require('@axe-core/playwright/package.json').version;
+    } catch {
+      return 'unknown';
+    }
   }
+}
+
+function axeReviewReason(node) {
+  const checks = [...(node.any || []), ...(node.all || []), ...(node.none || [])];
+  const message = checks.map((check) => check.message).find(Boolean);
+  if (message) {
+    return `Automated check incomplete: ${message}. Verify manually — not a confirmed failure.`;
+  }
+  return 'Automated check incomplete. Verify manually — not a confirmed failure.';
 }
 
 module.exports = {
@@ -111,4 +139,6 @@ module.exports = {
   userImpactForRule,
   formatTimestamp,
   readAxeVersion,
+  countIncompleteNodes,
+  axeReviewReason,
 };

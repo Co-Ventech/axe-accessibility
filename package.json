@@ -8,7 +8,8 @@
     "test:headed": "node src/utils/run.js --headed",
     "test:smoke": "node src/utils/run.js --grep @smoke",
     "test:strict": "cross-env FAIL_ON=serious node src/utils/run.js",
-    "report": "node src/utils/htmlReport.js"
+    "report": "node src/utils/htmlReport.js",
+    "audit": "node scripts/audit-report.js"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",
