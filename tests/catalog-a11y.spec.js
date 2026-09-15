@@ -3,6 +3,7 @@ const { uiBaseUrl, wcagTags, failOn } = require('../src/config');
 const { scanPage, assertScanThreshold } = require('../src/utils/axeScan');
 const { fetchFirstInStockProductId } = require('../src/utils/catalogApi');
 const { writeResults } = require('../src/utils/resultsStore');
+const { readAxeVersion } = require('../src/utils/reportHelpers');
 
 test.describe.configure({ mode: 'serial' });
 
@@ -33,6 +34,7 @@ test.describe('Toolshop catalog accessibility @smoke', () => {
       generatedAt: new Date().toISOString(),
       failOn,
       tags: wcagTags,
+      axeVersion: readAxeVersion(),
       scans,
     });
   });

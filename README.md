@@ -57,7 +57,7 @@ Scans use axe tags: `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22a`, `wcag
 
 ## Report
 
-Every run writes machine-readable results and a self-contained HTML dashboard.
+Every run writes machine-readable results and a stakeholder-friendly HTML dashboard (same pattern as axe DevTools / Lighthouse: executive summary first, developer detail below).
 
 | Output | Path |
 |---|---|
@@ -65,7 +65,16 @@ Every run writes machine-readable results and a self-contained HTML dashboard.
 | HTML dashboard | `reports/accessibility-report.html` |
 | Playwright traces (failures) | `test-results/` |
 
-The HTML report includes journey summary, impact counts, and per-rule nodes with documentation links.
+### How stakeholders read it
+
+1. **Verdict banner** — overall outcome for the configured `FAIL_ON` gate.
+2. **Fix first** — prioritized list across all pages (critical → minor).
+3. **Journey** — per-page status with links to detailed sections.
+4. **User impact** — plain-language explanation under each rule (who is affected and why).
+5. **WCAG success criteria** — chips such as `SC 1.3.1`, `SC 2.5.8` mapped from axe tags.
+6. **Needs manual review** — rules axe could not fully automate (contrast, etc.).
+
+Developers expand each **Element** row for selectors, HTML snippet, and fix instructions. Deque documentation links provide the canonical remediation guidance.
 
 ## CI
 

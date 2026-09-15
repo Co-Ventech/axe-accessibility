@@ -1,14 +1,8 @@
 const AxeBuilder = require('@axe-core/playwright').default;
 const { wcagTags, failOn } = require('../config');
+const { getFailImpacts, sortViolations } = require('./reportHelpers');
 
 const IMPACT_ORDER = ['critical', 'serious', 'moderate', 'minor'];
-
-const FAIL_THRESHOLDS = {
-  none: [],
-  moderate: ['moderate', 'serious', 'critical'],
-  serious: ['serious', 'critical'],
-  critical: ['critical'],
-};
 
 function summarizeViolations(violations) {
   const byImpact = { critical: 0, serious: 0, moderate: 0, minor: 0 };
@@ -23,9 +17,7 @@ function formatViolationSummary(violations) {
     return 'No violations at configured fail threshold.';
   }
 
-  return violations
-    .slice()
-    .sort((a, b) => IMPACT_ORDER.indexOf(a.impact) - IMPACT_ORDER.indexOf(b.impact))
+  return sortViolations(violations)
     .map((violation) => `${violation.impact}: ${violation.id} — ${violation.help}`)
     .join('\n');
 }
@@ -36,7 +28,7 @@ async function scanPage(page, { name, url, tags = wcagTags }) {
 
   const results = await new AxeBuilder({ page }).withTags(tags).analyze();
   const summary = summarizeViolations(results.violations);
-  const failingImpacts = FAIL_THRESHOLDS[failOn] || FAIL_THRESHOLDS.none;
+  const failingImpacts = getFailImpacts(failOn);
   const failingViolations = results.violations.filter((violation) => failingImpacts.includes(violation.impact));
 
   return {
@@ -46,6 +38,7 @@ async function scanPage(page, { name, url, tags = wcagTags }) {
     timestamp: new Date().toISOString(),
     passes: results.passes.length,
     incomplete: results.incomplete.length,
+    incompleteRules: results.incomplete,
     inapplicable: results.inapplicable.length,
     violationCount: results.violations.length,
     summary,
