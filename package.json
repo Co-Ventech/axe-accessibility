@@ -1,0 +1,19 @@
+{
+  "name": "axe-accessibility",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright + axe-core WCAG 2.2 accessibility audits against Toolshop.",
+  "scripts": {
+    "test": "node src/utils/run.js",
+    "test:headed": "node src/utils/run.js --headed",
+    "test:smoke": "node src/utils/run.js --grep @smoke",
+    "test:strict": "cross-env FAIL_ON=serious node src/utils/run.js",
+    "report": "node src/utils/htmlReport.js"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@playwright/test": "^1.55.0",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.7"
+  }
+}
