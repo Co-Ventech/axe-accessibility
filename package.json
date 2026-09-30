@@ -2,7 +2,7 @@
   "name": "axe-accessibility",
   "version": "1.0.0",
   "private": true,
-  "description": "Playwright + axe-core WCAG 2.2 accessibility audits against Toolshop.",
+  "description": "Playwright + axe-core WCAG 2.2 accessibility audits against Noah Cares.",
   "scripts": {
     "test": "node src/utils/run.js",
     "test:headed": "node src/utils/run.js --headed",

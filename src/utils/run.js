@@ -13,6 +13,7 @@ if (headed) {
 }
 
 clearEvidenceDir();
+fs.rmSync(path.join('reports', 'axe-results.json'), { force: true });
 
 const playwrightBin = path.join(__dirname, '..', '..', 'node_modules', '@playwright', 'test', 'cli.js');
 const result = spawnSync(process.execPath, [playwrightBin, 'test', ...playwrightArgs], {

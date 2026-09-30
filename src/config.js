@@ -1,13 +1,13 @@
 require('dotenv').config();
 
-const uiBaseUrl = (process.env.UI_BASE_URL || 'https://practicesoftwaretesting.com').replace(/\/$/, '');
-const apiBaseUrl = (process.env.API_BASE_URL || 'https://api.practicesoftwaretesting.com').replace(/\/$/, '');
+const uiBaseUrl = (process.env.UI_BASE_URL || 'https://staging.noahcares.com').replace(/\/$/, '');
 
 module.exports = {
   uiBaseUrl,
-  apiBaseUrl,
+  loginEmail: process.env.LOGIN_EMAIL || '',
+  loginPassword: process.env.LOGIN_PASSWORD || '',
   headless: process.env.HEADLESS !== 'false',
-  failOn: (process.env.FAIL_ON || 'none').toLowerCase(),
+  failOn: (process.env.FAIL_ON || 'serious').toLowerCase(),
   wcagTags: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa'],
-  timeoutMs: Number(process.env.TIMEOUT || 60_000),
+  timeoutMs: Number(process.env.TIMEOUT || 90_000),
 };

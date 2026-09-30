@@ -84,7 +84,7 @@ function groupNodes(nodes = []) {
 function formatGroupSummary(group) {
   const parts = [`${group.count} instance(s)`];
   if (group.cardCount && group.cardCount > 1) {
-    parts.push(`across ${group.cardCount} product cards`);
+    parts.push(`across ${group.cardCount} repeated regions`);
   }
   return parts.join(' · ');
 }

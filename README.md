@@ -1,8 +1,8 @@
 # Axe Accessibility
 
-Playwright + [axe-core](https://github.com/dequelabs/axe-core) WCAG 2.2 audits against the [Toolshop](https://practicesoftwaretesting.com) UI.
+Playwright + [axe-core](https://github.com/dequelabs/axe-core) WCAG 2.2 audits against [Noah Cares staging](https://staging.noahcares.com/).
 
-Agency-ready template: one catalog smoke journey (home + product detail), JSON + HTML reporting, CI workflow with artifact upload.
+One smoke journey (login page + signed-in home), JSON + HTML reporting, and a CI workflow that uploads the report artifact.
 
 ## Prerequisites
 
@@ -21,6 +21,15 @@ copy .env.example .env
 
 On macOS/Linux use `cp .env.example .env`.
 
+Put the staging account in `.env`:
+
+```powershell
+LOGIN_EMAIL=you@example.com
+LOGIN_PASSWORD="your-password"
+```
+
+`.env` is gitignored. Do not commit the password.
+
 ## Run
 
 ```powershell
@@ -33,7 +42,7 @@ npm run report        # rebuild HTML from reports/axe-results.json
 
 ### Fail threshold
 
-`FAIL_ON` controls when tests fail on axe findings (default `none` so the demo site can be audited without blocking CI):
+`FAIL_ON` controls when tests fail on axe findings (default `serious`):
 
 | Value | Behavior |
 |---|---|
@@ -52,12 +61,12 @@ Scans use axe tags: `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22a`, `wcag
 
 ## Journey
 
-1. **Home catalog** — load `/`, run axe against the product grid.
-2. **Product detail** — resolve first in-stock product via Toolshop API, scan `/product/{id}`.
+1. **Login** — open `/login` and run axe on the signed-out form.
+2. **Signed-in home** — sign in with `LOGIN_EMAIL` / `LOGIN_PASSWORD`, then scan the page the app opens next.
 
 ## Report
 
-Every run writes machine-readable results and a stakeholder-friendly HTML dashboard (same pattern as axe DevTools / Lighthouse: executive summary first, developer detail below).
+Every run writes machine-readable results and a stakeholder-friendly HTML dashboard (executive summary first, developer detail below).
 
 | Output | Path |
 |---|---|
@@ -66,7 +75,7 @@ Every run writes machine-readable results and a stakeholder-friendly HTML dashbo
 | Element screenshots | `reports/evidence/{page}/{rule}-{index}.png` |
 | Playwright traces (failures) | `test-results/` |
 
-Each finding includes a **highlighted screenshot** from the live app (orange outline on the affected element). Repeated UI patterns (e.g. CO2 badges on every product card) are **grouped** with one representative screenshot and a collapsible list of all selectors.
+Each finding includes a **highlighted screenshot** from the live app (orange outline on the affected element). Repeated UI patterns are **grouped** with one representative screenshot and a collapsible list of all selectors.
 
 Open `reports/accessibility-report.html` with the `reports/evidence/` folder beside it (CI uploads the whole `reports/` directory as one artifact).
 
@@ -74,11 +83,14 @@ Open `reports/accessibility-report.html` with the `reports/evidence/` folder bes
 
 GitHub Actions runs `npm run test:smoke` on push/PR and uploads `reports/` as the `accessibility-report` artifact.
 
+Add repository secrets `LOGIN_EMAIL` and `LOGIN_PASSWORD` so the signed-in scan can authenticate. The workflow does not store the password in the repo.
+
 ## Environment
 
 | Variable | Default |
 |---|---|
-| `UI_BASE_URL` | `https://practicesoftwaretesting.com` |
-| `API_BASE_URL` | `https://api.practicesoftwaretesting.com` |
+| `UI_BASE_URL` | `https://staging.noahcares.com` |
+| `LOGIN_EMAIL` | empty |
+| `LOGIN_PASSWORD` | empty |
 | `HEADLESS` | `true` |
-| `FAIL_ON` | `none` |
+| `FAIL_ON` | `serious` |

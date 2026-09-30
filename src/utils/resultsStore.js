@@ -19,8 +19,19 @@ function readResults() {
   return JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
 }
 
+function recordScan(scan, meta) {
+  const existing = readResults();
+  const scans = (existing?.scans || []).filter((item) => item.name !== scan.name);
+  scans.push(scan);
+  writeResults({
+    ...meta,
+    scans,
+  });
+}
+
 module.exports = {
   resultsPath,
   writeResults,
   readResults,
+  recordScan,
 };
